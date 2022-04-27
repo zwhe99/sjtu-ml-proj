@@ -22,6 +22,7 @@ SST-2 Binary text classification with XLM-RoBERTa model
 # --------------
 import torch
 import torch.nn as nn
+from tqdm import tqdm
 
 DEVICE = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
@@ -63,6 +64,7 @@ text_transform = T.Sequential(
     T.AddToken(token=eos_idx, begin=False),
 )
 
+label_transform = T.LabelToIndex(label_names=["0", "1"], sort_names=True)
 
 from torch.utils.data import DataLoader
 
@@ -92,7 +94,7 @@ batch_size = 16
 train_datapipe = SST2(split="train")
 dev_datapipe = SST2(split="dev")
 
-# Transform the raw dataset using non-batched API (i.e apply transformation line by line)
+# # Transform the raw dataset using non-batched API (i.e apply transformation line by line)
 train_datapipe = train_datapipe.map(lambda x: (text_transform(x[0]), x[1]))
 train_datapipe = train_datapipe.batch(batch_size)
 train_datapipe = train_datapipe.rows2columnar(["token_ids", "target"])
@@ -109,11 +111,14 @@ dev_dataloader = DataLoader(dev_datapipe, batch_size=None)
 #
 # ::
 #
-#   train_datapipe = train_datapipe.batch(batch_size).rows2columnar(["text", "label"])
-#   train_datapipe = train_datapipe.map(lambda x: {"token_ids": text_transform(x["text"]), "target": label_transform(x["label"])})
-#   dev_datapipe = dev_datapipe.batch(batch_size).rows2columnar(["text", "label"])
-#   dev_datapipe = dev_datapipe.map(lambda x: {"token_ids": text_transform(x["text"]), "target": label_transform(x["label"])})
-#
+
+# train_datapipe = train_datapipe.batch(batch_size).rows2columnar(["text", "label"])
+# train_datapipe = train_datapipe.map(lambda x: {"token_ids": text_transform(x["text"]), "target": x["label"]})
+# dev_datapipe = dev_datapipe.batch(batch_size).rows2columnar(["text", "label"])
+# dev_datapipe = dev_datapipe.map(lambda x: {"token_ids": text_transform(x["text"]), "target": x["label"]})
+# train_dataloader = DataLoader(train_datapipe, collate_fn=collate_fn, batch_size=batch_size)
+# dev_dataloader = DataLoader(dev_datapipe, collate_fn=collate_fn, batch_size=batch_size)
+
 
 ######################################################################
 # Model Preparation
@@ -199,7 +204,7 @@ def evaluate():
 num_epochs = 1
 
 for e in range(num_epochs):
-    for batch in train_dataloader:
+    for batch in tqdm(train_dataloader):
         input = F.to_tensor(batch["token_ids"], padding_value=padding_idx).to(DEVICE)
         target = torch.tensor(batch["target"]).to(DEVICE)
         train_step(input, target)
