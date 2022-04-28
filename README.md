@@ -3,12 +3,12 @@
 ```shell
 # SST-2 classification by LSTM
 
-python3 run-sst2-classification.py
+python3 run-sst2-classification.py | tee -a logs/sst2.log
 ```
 
 ```shell
 # Mnist classification by designed model
 
-run-mnist-classification.py
+python3 run-mnist-classification.py | tee -a logs/mnist.log
 ```
 
