@@ -97,3 +97,6 @@ class Trainer:
                     if valid_accuracy > self.best_accuracy:
                         self.best_accuracy = valid_accuracy
                         torch.save(self.model.state_dict(), os.path.join(self.checkpoint_dir, "checkpoint_best.pt"))
+                
+                if total_step >= self.max_update:
+                    return

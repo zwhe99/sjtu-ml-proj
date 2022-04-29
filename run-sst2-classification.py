@@ -49,6 +49,8 @@ def parse_args():
         help="Maximum length of sequences")
     
     # LSTM parameters
+    parser.add_argument("--restore-file", type=str, 
+        help="Filename from which to load checkpoint")
     parser.add_argument("--emb-dim", type=int, default=512, 
         help="Embedding dimension")
     parser.add_argument("--hidden-dim", type=int, default=512, 
@@ -71,6 +73,12 @@ def parse_args():
         help="Validate every N updates")
     parser.add_argument("--checkpoint-dir", type=str, default="./ckpts/lstm",
         help="Path to save checkpoints")
+
+    # Predict
+    parser.add_argument("--predict-only", default=False, action="store_true", 
+        help="Predict test set and quit")
+    parser.add_argument("--out-file", type=str, default="pred.tsv",  
+        help="Path to prediction file")
 
     # Seed for reproducibility
     parser.add_argument("--seed", type=int, default=42, 
@@ -112,6 +120,7 @@ if __name__ == "__main__":
 
     train_datapipe = SST2(root=args.data_dir, split="train")
     dev_datapipe = SST2(root=args.data_dir, split="dev")
+    test_datapipe = SST2(root=args.data_dir, split="test")
 
     def collate_fn(batch):
         input = F.to_tensor(
@@ -122,7 +131,10 @@ if __name__ == "__main__":
                 )
             ).to(device)
 
-        target = torch.tensor(batch["target"]).to(device)
+        if not args.predict_only:
+            target = torch.tensor(batch["target"]).to(device)
+        else:
+            target = None
         return input, target
 
     train_datapipe = train_datapipe.map(lambda x: (text_transform(x[0]), x[1]))
@@ -135,6 +147,11 @@ if __name__ == "__main__":
     dev_datapipe = dev_datapipe.rows2columnar(["token_ids", "target"])
     dev_dataloader = DataLoader(dev_datapipe, collate_fn=collate_fn, batch_size=None)
 
+    test_datapipe = test_datapipe.map(lambda x: (text_transform(x[0]), None))
+    test_datapipe = test_datapipe.batch(args.batch_size)
+    test_datapipe = test_datapipe.rows2columnar(["token_ids", "target"])
+    test_dataloader = DataLoader(test_datapipe, collate_fn=collate_fn, batch_size=None)
+
     # build model
     model = LSTMClassifier(
         emb_dim=args.emb_dim, 
@@ -144,26 +161,51 @@ if __name__ == "__main__":
         padding_idx=padding_idx, 
         num_classes=NUM_CLASSES
     )
+    if args.restore_file:
+        logger.info(f"Loading model from {args.restore_file}")
+        model.load_state_dict(torch.load(args.restore_file))
+
     model.to(device)
 
-    # optimizer
-    optim = AdamW(model.parameters(), lr=args.learning_rate)
-    criteria = nn.CrossEntropyLoss()
+    if not args.predict_only:
+        # do training
 
-    # start training
-    trainer = Trainer(
-        model=model,
-        device=device,
-        optimizer=optim,
-        criteria=criteria,
-        train_dataloader=train_dataloader,
-        dev_dataloader=dev_dataloader,
-        batch_size=args.batch_size,
-        learning_rate=args.learning_rate,
-        max_epoch=args.max_epoch,
-        max_update=args.max_update,
-        validate_interval_updates=args.validate_interval_updates,
-        log_interval=args.log_interval,
-        checkpoint_dir=args.checkpoint_dir
-    )
-    trainer.train()
+        # optimizer
+        optim = AdamW(model.parameters(), lr=args.learning_rate)
+        criteria = nn.CrossEntropyLoss()
+
+        # start training
+        trainer = Trainer(
+            model=model,
+            device=device,
+            optimizer=optim,
+            criteria=criteria,
+            train_dataloader=train_dataloader,
+            dev_dataloader=dev_dataloader,
+            batch_size=args.batch_size,
+            learning_rate=args.learning_rate,
+            max_epoch=args.max_epoch,
+            max_update=args.max_update,
+            validate_interval_updates=args.validate_interval_updates,
+            log_interval=args.log_interval,
+            checkpoint_dir=args.checkpoint_dir
+        )
+        trainer.train()
+    
+    else:
+        # predict test set
+
+        logger.info(f"[TEST] Predicting test set ...")
+        outputs = []
+        
+        model.eval()
+        with torch.no_grad():
+            for batch in test_dataloader:
+                input, _ = batch[0], batch[1]    
+                outputs.append(model(input).argmax(1))  
+
+        outputs = torch.concat(outputs).cpu().numpy()
+
+        with open(args.out_file, 'w') as f:
+            f.writelines([str(p) + '\n' for p in outputs])
+
