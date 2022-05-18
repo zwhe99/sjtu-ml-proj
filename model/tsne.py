@@ -1,12 +1,11 @@
 import math
 import numpy as np
-from utils import (
+from .utils import (
     pairwise_distances, 
     squared_dist_to_gaussian_conditional_prob, 
     conditional_prob_to_joint_prob, 
     squared_dist_to_student_t_joint_prob,
-    kl_loss,
-    seed_everything
+    kl_loss
 )
 
 class TSNE:

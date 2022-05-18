@@ -1,5 +1,26 @@
 import numpy as np
 import math
+import torch
+from torchvision import transforms
+
+IMAGE_SHAPE = (224, 224)
+
+preprocess = transforms.Compose([
+    transforms.Resize(256),
+    transforms.CenterCrop(IMAGE_SHAPE),
+    transforms.ToTensor()
+])
+
+normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+
+def top_k_indices(model, x, k):
+    assert len(x.shape) == 3, "Only accept one image."
+    x = x.unsqueeze(0) 
+
+    with torch.no_grad():
+        output = model(x)[0]
+    return torch.topk(output, k).indices
+    
 
 def pairwise_distances(x):
     return np.linalg.norm(x[:, None, :] - x[None, :, :], axis=-1)
@@ -79,3 +100,6 @@ def squared_dist_to_student_t_joint_prob(squared_dist_matrix, degrees_of_freedom
     joint_matrix /= joint_matrix.sum()
 
     return joint_matrix
+
+
+
