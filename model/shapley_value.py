@@ -1,34 +1,22 @@
 import torch
-from einops import rearrange
-from .utils import preprocess, normalize, top_k_indices, IMAGE_SHAPE
-from tqdm import tqdm
 import random
 import math
+from einops import rearrange
+from .base_explainer import BaseExplainer
+from .utils import normalize, IMAGE_SHAPE
 
 BASE_VALUE = 128 / 255
 
-class ShapleyValue:
+class ShapleyValue(BaseExplainer):
 
     def __init__(self, model, max_context, patch_side_len, top_k):
-        self.model = model
+        super(ShapleyValue, self).__init__(model, top_k)
         self.max_context = max_context
         self.patch_side_len = patch_side_len
-        self.top_k = top_k
         self.grid_shape = (IMAGE_SHAPE[0] // self.patch_side_len, IMAGE_SHAPE[0] // self.patch_side_len)
         self.num_patches = self.grid_shape[0] * self.grid_shape[1]
-    
-    def explain(self, input_image):
-        input_image = preprocess(input_image)
-        target_ids = top_k_indices(self.model, normalize(input_image), self.top_k)
         
-        result = torch.empty((self.top_k, IMAGE_SHAPE[0], IMAGE_SHAPE[1]))
-
-        for i, tgt_id in tqdm(enumerate(target_ids), total=self.top_k):
-            result[i] = self.get_shapley_values(input_image, tgt_id)
-        
-        return result, target_ids
-    
-    def get_shapley_values(self, input_image, tgt_id):
+    def get_importance_values(self, input_image, tgt_id):
         input_grid = rearrange(input_image, 'c (h p0) (w p1) -> c p0 p1 (h w)', p0=self.patch_side_len, p1=self.patch_side_len)
 
         # compute shapley_value matrix (patch level)

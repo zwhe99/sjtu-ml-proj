@@ -1,59 +1,44 @@
 import argparse
-import math
-from sklearn.feature_extraction import img_to_graph
 import torch
-import random
 import numpy as np
 import os
-import cv2
 
 from PIL import Image
 import matplotlib.pyplot as plt
 from torchvision.models import resnet18, vgg16
-from torchvision import transforms
-from tqdm import tqdm
-from einops import rearrange
-from utils import red_transparent_blue
+from utils import jet_transparent
+from model.grad_cam import GradCAM
+from model.utils import preprocess
 
 
 def parse_args():
-    parser = argparse.ArgumentParser("Shapley value visualization", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser = argparse.ArgumentParser(
+        "Grad-CAM visualization", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     parser.add_argument("--ptm", type=str, default="resnet18", choices=["resnet18", "vgg16"],
-        help="Pre-trained model")
+                        help="Pre-trained model")
 
     parser.add_argument("--input", type=str, default="/Users/zwhe/ALLPhd/课程资料/机器学习/proj/dog.jpg",
-        help="Path to input figure.")
+                        help="Path to input figure.")
 
-    parser.add_argument("--ground-truth", type=str, default="Samoyed",
-        help="Ground truth of input images. Select it from imagenet_classes.txt.")
+    parser.add_argument("--labels", type=str, default="imagenet_classes.txt",
+                        help="All possible labels of imagenet "
+                        "(https://raw.githubusercontent.com/pytorch/hub/master/imagenet_classes.txt)."
+                        )
 
-    parser.add_argument("--labels", type=str, default="imagenet_classes.txt", 
-        help="All possible labels of imagenet "
-        "(https://raw.githubusercontent.com/pytorch/hub/master/imagenet_classes.txt)."
-    )
-
-    parser.add_argument("-m", "--max-context", type=int, default=30, 
-        help="Sample N contexts for each input variable."
-    )
-
-    parser.add_argument("-lp", "--patch-side-len", type=int, default=28, 
-        help="Side length of a patch. Input image shape is (224, 224)."
-    )
+    parser.add_argument("-k", "--top-k", type=int, default=3,
+                        help="Compute Grad-CAM for top-k labels"
+                        )
 
     return parser.parse_args()
 
+
 def main(args):
-    image_shape = (224, 224)
-
     # read all categories
-    assert os.path.exists(args.labels), "Please download https://raw.githubusercontent.com/pytorch/hub/master/imagenet_classes.txt"
-
+    assert os.path.exists(
+        args.labels), "Please download https://raw.githubusercontent.com/pytorch/hub/master/imagenet_classes.txt"
     with open(args.labels, "r") as f:
         categories = [s.strip() for s in f.readlines()]
-
-    assert args.ground_truth in categories, f"{args.ground_truth} not in categories"
-    ground_truth_id = categories.index(args.ground_truth)
 
     # build model
     if args.ptm == "resnet18":
@@ -61,67 +46,50 @@ def main(args):
     elif args.ptm == "vgg16":
         model = vgg16(pretrained=True, progress=False).eval()
 
-    # define preprossing
-    preprocess = transforms.Compose([
-        transforms.Resize(256),
-        transforms.CenterCrop(image_shape),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-    ])
-
     # read input image & perform pre-processing without normalization
-    input_img = Image.open(args.input)
-    input_tensor = preprocess(input_img).unsqueeze(0)
+    input_image = Image.open(args.input)
 
-    fmaps = []
-    def forward_hook(module, input, output):
-        fmaps.append(output)
+    explainer = GradCAM(model, args.top_k)
+    grad_cam_imgs, target_ids = explainer.explain(input_image)
 
-    grads = []
-    def backward_hook(module, grad_in, grad_out):
-        grads.append(grad_out[0].detach())
+    # display
+    fig_size = np.array([5 * args.top_k, 5])
+    fig, axes = plt.subplots(nrows=1, ncols=1 + args.top_k, figsize=fig_size)
 
-    getattr(model, "layer4").register_forward_hook(forward_hook)
-    getattr(model, "layer4").register_backward_hook(backward_hook)
+    # original img
+    input_image = preprocess(input_image).permute(1, 2, 0)
 
-    output = model(input_tensor)
-    idx = np.argmax(output.cpu().data.numpy())
+    for i in range(1 + args.top_k):
+        if i == 0:
+            # plot original img
+            axes[0].imshow(input_image, cmap=plt.get_cmap('gray'))
+            axes[0].set_title("Input")
+            axes[0].axis('off')
+        else:
+            # plot original img as background
+            axes[i].imshow(input_image)
 
-    # backward
-    model.zero_grad()
-    idx = idx[np.newaxis, np.newaxis]
-    idx = torch.from_numpy(idx)
-    one_hot = torch.zeros(1, 1000).scatter_(1, idx, 1)
-    one_hot.requires_grad = True
-    loss = torch.sum(one_hot * output)
-    loss.backward()
+            # plot grad cam
+            max_val = np.nanpercentile(torch.abs(grad_cam_imgs), 99.9)
+            min_val = 0
+            im = axes[i].imshow(grad_cam_imgs[i-1],
+                                cmap=jet_transparent, vmin=min_val, vmax=max_val)
+            axes[i].set_title(categories[target_ids[i-1]])
+            axes[i].axis('off')
 
-    # generate CAM
-    grads_val = grads[0].cpu().data.numpy().squeeze()
-    fmap = fmaps[0].cpu().data.numpy().squeeze()
+    # add color bar and show
+    fig.subplots_adjust(
+        left=0.01,
+        right=0.90,
+        wspace=0.015
+    )
 
-    cam = np.zeros(fmap.shape[1:], dtype=np.float32)
-    alpha = np.mean(grads_val, axis=(1, 2))  # GAP
-    for k, ak in enumerate(alpha):
-        cam += ak * fmap[k]  # linear combination
-    
-    cam = np.maximum(cam, 0)  # relu
-    cam = cv2.resize(cam, image_shape)
-    cam = (cam - np.min(cam)) / np.max(cam)
-    
-    # show
-    # cam_show = cv2.resize(cam, None)
-    img_show = np.array(input_img).astype(np.float32) / 255
-    cam_show = cv2.resize(cam, (img_show.shape[1], img_show.shape[0]))
-    heatmap = cv2.applyColorMap(np.uint8(255 * cam_show), cv2.COLORMAP_JET)
-    heatmap = np.float32(heatmap) / 255
-    cam = heatmap + np.float32(img_show)
-    cam = cam / np.max(cam)
-    cam = np.uint8(255 * cam)
-    plt.imshow(cam[:, :, ::-1])
+    cax = fig.add_axes([axes[-1].get_position().x1 + 0.005,
+                        axes[-1].get_position().y0, 0.02, axes[-1].get_position().height])
+    cb = fig.colorbar(im, cax=cax, label="Grad CAM")
+    cb.outline.set_visible(False)
+
     plt.show()
-    
-
 
 
 if __name__ == "__main__":
