@@ -79,15 +79,18 @@ def main(args):
 
     # add color bar and show
     fig.subplots_adjust(
-        left=0.01,
-        right=0.90,
+        left=0.075,
+        right=0.99,
         wspace=0.015
     )
 
-    cax = fig.add_axes([axes[-1].get_position().x1 + 0.005,
-                        axes[-1].get_position().y0, 0.02, axes[-1].get_position().height])
-    cb = fig.colorbar(im, cax=cax, label="Grad CAM")
+    cax = fig.add_axes([axes[0].get_position().x0 - 0.03,
+                        axes[0].get_position().y0, 0.02, axes[0].get_position().height])
+    cb = fig.colorbar(im, cax=cax, label="Grad CAM Value")
     cb.outline.set_visible(False)
+    cax.yaxis.tick_left()
+    cax.yaxis.set_label_position('left')
+    fig.suptitle(f'Grad CAM for {args.ptm} ({os.path.basename(args.input)})') 
 
     plt.show()
 
