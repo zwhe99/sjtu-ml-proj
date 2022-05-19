@@ -99,11 +99,11 @@ def main(args):
 
     cax = fig.add_axes([axes[0].get_position().x0 - 0.03,
                         axes[0].get_position().y0, 0.02, axes[0].get_position().height])
-    cb = fig.colorbar(im, cax=cax, label="Grad CAM Value")
+    cb = fig.colorbar(im, cax=cax, label="Shapley Value")
     cb.outline.set_visible(False)
     cax.yaxis.tick_left()
     cax.yaxis.set_label_position('left')
-    fig.suptitle(f'Grad CAM for {args.ptm} ({os.path.basename(args.input)})') 
+    fig.suptitle(f'Shapley Value for {args.ptm} ({os.path.basename(args.input)})') 
 
     plt.show()
 
