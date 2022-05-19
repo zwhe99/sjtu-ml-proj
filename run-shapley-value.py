@@ -18,7 +18,7 @@ def parse_args():
     parser.add_argument("--ptm", type=str, default="resnet18", choices=["resnet18", "vgg16"],
                         help="Pre-trained model")
 
-    parser.add_argument("--input", type=str, default="/Users/zwhe/ALLPhd/课程资料/机器学习/proj/dog.jpg",
+    parser.add_argument("--input", type=str, required=True,
                         help="Path to input figure.")
 
     parser.add_argument("--labels", type=str, default="imagenet_classes.txt",

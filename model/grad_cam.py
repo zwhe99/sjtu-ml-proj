@@ -8,8 +8,6 @@ from .base_explainer import BaseExplainer
 from .utils import preprocess, normalize
 
 
-
-
 class GradCAM(BaseExplainer):
 
     def __init__(self, model, top_k):
@@ -29,7 +27,7 @@ class GradCAM(BaseExplainer):
             getattr(self.model, "layer4").register_full_backward_hook(
                 self.backward_hook)
         else:
-            raise ValueError
+            raise ValueError(f"Only {torchvision.models.vgg.VGG} and {torchvision.models.resnet.ResNet} are allowed for GradCAM.")
 
     def explain(self, input_image):
         input_image = normalize(preprocess(input_image))
@@ -54,8 +52,8 @@ class GradCAM(BaseExplainer):
         alpha = self.gradient.mean(dim=[1, 2])
 
         grad_cam = F.relu(torch.einsum('c,chw->hw', alpha, self.feature_map))
-        grad_cam = F.upsample_bilinear(grad_cam.view(
-            1, 1, *grad_cam.shape), size=IMAGE_SHAPE)
+        grad_cam = F.interpolate(grad_cam.view(
+            1, 1, *grad_cam.shape), mode="bicubic", size=IMAGE_SHAPE)
 
         grad_cam = (grad_cam - grad_cam.min()) / grad_cam.max()
         return grad_cam.squeeze()

@@ -71,9 +71,9 @@ class ShapleyValue(BaseExplainer):
             select = torch.full((self.num_patches,), False) 
             select[i] = True
             shapley_values_grid = torch.masked_fill(shapley_values_grid, select, shapley_values[r, c])
-        shapley_values_img = rearrange(shapley_values_grid, 'p0 p1 (h w) -> (h p0) (w p1)', h=self.grid_shape[0], w=self.grid_shape[1])
-        return shapley_values_img
+        shapley_values = rearrange(shapley_values_grid, 'p0 p1 (h w) -> (h p0) (w p1)', h=self.grid_shape[0], w=self.grid_shape[1])
 
+        return shapley_values
 
     def value(self, x, tgt_id):
         x = x.unsqueeze(0) 
