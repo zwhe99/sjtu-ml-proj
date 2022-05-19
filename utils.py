@@ -1,6 +1,7 @@
 import os
 import random
 from matplotlib.colors import LinearSegmentedColormap
+from tqdm import tqdm
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -37,3 +38,39 @@ def seed_everything(seed: int):
     torch.cuda.manual_seed(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = True
+
+
+def eval_helper(model, dataloader, criteria):
+    outputs = []
+    probs = []
+    features = []
+    targets = []
+    loss = None
+
+    model.eval()
+    with torch.no_grad():
+        for batch in tqdm(dataloader):
+            input, target = batch[0], batch[1]   
+            prob, feature = model(input, return_feature=True)
+
+            outputs.append(prob.argmax(1))  
+            probs.append(prob)
+            features.append(feature)
+            targets.append(target)
+
+    
+    outputs = torch.concat(outputs)
+    probs = torch.vstack(probs)
+    features = torch.vstack(features)
+
+    if all([t is None for t in targets]):
+        targets = None
+    else:
+        targets = torch.concat(targets)
+        loss = criteria(probs, targets).cpu().item()
+        targets = targets.cpu().numpy()
+
+    outputs = outputs.cpu().numpy()
+    features = features.cpu().numpy()
+
+    return outputs, features, targets, loss

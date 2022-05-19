@@ -44,7 +44,6 @@ class Trainer:
         self.model.train()
         input, target = batch[0], batch[1]
 
-        self.model.train()
         output = self.model(input)
         loss = self.criteria(output, target)
         self.optimizer.zero_grad()

@@ -2,15 +2,19 @@ import argparse
 import torch
 import sys
 import logging
+import numpy as np
 import torch.nn as nn
+import matplotlib.pyplot as plt
 from torchvision.datasets import MNIST
 from torchvision import transforms
 from torch.optim import AdamW
 from torch.utils.data import DataLoader
 
+from model.pca import PCA
+from model.tsne import TSNE
 from model.net import Net
 from trainer import Trainer
-from utils import seed_everything
+from utils import eval_helper, seed_everything
 
 logging.basicConfig(
     stream=sys.stdout,
@@ -55,9 +59,13 @@ def parse_args():
 
     # Predict
     parser.add_argument("--predict-only", default=False, action="store_true", 
-        help="Predict test set and quit")
+        help="Predict test set and quit. Test set and valid set are the same for MNIST.")
     parser.add_argument("--out-file", type=str, default="pred.tsv",  
         help="Path to prediction file")
+
+    # Eval
+    parser.add_argument("--eval-only", default=False, action="store_true", 
+        help="Evaluate model on valid set, and plot features using PCA and TSNE. Test set and valid set are the same for MNIST.")
 
     # Seed for reproducibility
     parser.add_argument("--seed", type=int, default=42, 
@@ -91,7 +99,7 @@ if __name__ == "__main__":
     optim = AdamW(model.parameters(), lr=args.learning_rate)
     criteria = nn.CrossEntropyLoss()
 
-    if not args.predict_only:
+    if (not args.predict_only) and (not args.eval_only):
         # start training
         trainer = Trainer(
             model=model,
@@ -109,36 +117,62 @@ if __name__ == "__main__":
             checkpoint_dir=args.checkpoint_dir
         )
         trainer.train()
-    else:
-        # predict test set
+    elif args.predict_only:
+            # predict test set
 
-        logger.info(f"[TEST] Predicting test set ...")
-        outputs = []
-        total_loss = 0
-        correct_predictions = 0
-        total_predictions = 0
-        counter = 0
-        
-        model.eval()
-        with torch.no_grad():
-            for batch in dev_dataloader:
-                input, target = batch[0], batch[1]   
-                output = model(input) 
-                loss = criteria(output, target).item()
-                total_loss += float(loss)
-                correct_predictions += (output.argmax(1) == target).type(torch.float).sum().item()
-                total_predictions += len(target)
-                counter += 1
+        logger.info(f"[TEST] Predicting valid set ...")
+        valid_outputs, valid_features, valid_targets, loss = eval_helper(model, dev_dataloader, criteria)
 
-                outputs.append(output.argmax(1))  
-
-        # write prediction to output file
-        outputs = torch.concat(outputs).cpu().numpy()
         with open(args.out_file, 'w') as f:
-            f.writelines([str(p) + '\n' for p in outputs])
+            f.writelines([str(p) + '\n' for p in valid_outputs])
 
-        # log acc and loss
-        test_loss = total_loss / counter
-        test_accuracy = correct_predictions / total_predictions
-        logger.info(f"[TEST] Test_loss={test_loss:.5f} Test_accuracy={test_accuracy:.4f}")
+    elif args.eval_only:
+        # evaluate model on valid set, and plot features using PCA and t-SNE
+        if not args.restore_file:
+            logger.warning(f"[EVAL] You are now evaluating a randomly initialized model."
+                "You can set --restore-file to a trained model.")
+
+        logger.info(f"[EVAL] Evaluating model on training set ...")
+        train_outputs, train_features, train_targets, train_loss = eval_helper(model, train_dataloader, criteria)
+
+        logger.info(f"[EVAL] Evaluating model on valid set ...")
+        valid_outputs, valid_features, valid_targets, valid_loss = eval_helper(model, dev_dataloader, criteria)
+
+        # log
+        train_accuracy = (train_outputs == train_targets).sum() / len(train_targets)
+        valid_accuracy = (valid_outputs == valid_targets).sum() / len(valid_targets)
+        logger.info(f"[EVAL] Train_loss={train_loss:.4f} Train_accuracy={train_accuracy:.4f} Valid_loss={valid_loss:.4f} Valid_accuracy={valid_accuracy:.4f}")
+
+        # display
+        fig_size = np.array([10, 5])
+        fig, axes = plt.subplots(nrows=1, ncols=2, figsize=fig_size)
+
+        # The valid set of MNIST has 10k samples. We only sample 1k for visualization. 
+        rand_idx = np.random.choice(range(len(valid_features)), size=1000, replace=False)
+        subset_valid_features = valid_features[rand_idx]
+        subset_valid_targets = valid_targets[rand_idx]
+
+        # pca
+        logger.info(f"[EVAL] PCA transforming ...")
+        pca_features = PCA().fit_transform(subset_valid_features)
+
+        for label in np.unique(subset_valid_targets):
+            label_features = pca_features[subset_valid_targets == label]
+            axes[0].scatter(label_features[:, 0], label_features[:, 1], label=label)
+            axes[0].set_title("PCA")
+
+        # tsne
+        logger.info(f"[EVAL] t-SNE transforming ...")
+        tsne_features = TSNE().fit_transform(subset_valid_features)
         
+        for label in np.unique(subset_valid_targets):
+            label_features = tsne_features[subset_valid_targets == label]
+            axes[1].scatter(label_features[:, 0], label_features[:, 1], label=label)
+            axes[1].set_title("t-SNE")
+
+        # # set other information
+        handles, labels = axes[-1].get_legend_handles_labels()
+        fig.legend(handles, labels, loc='center right')
+        fig.suptitle("Feature visualization of designed model on MNIST test set (1k subset)")
+        plt.tight_layout()
+        plt.show()

@@ -1,22 +1,22 @@
 import numpy as np
 
 class PCA:
-    def __init__(self, n_componets=2):
-        self.n_componets = n_componets
+    def __init__(self, n_components=2):
+        self.n_components = n_components
         self.pc_vectors = None
         self.x_mean = None
     
     def fit(self, x):
         x = x.copy()
         n_samples, n_features = x.shape
-        assert self.n_componets <= n_features, f"{self.n_componets} <= {n_features}"
+        assert self.n_components <= n_features, f"{self.n_components} <= {n_features}"
 
         x_mean = x.mean(axis=0)
         x = x - x_mean
         cov = (1.0 / n_samples) * np.dot(x.T, x)
         eigen_values, eigen_vectors = np.linalg.eig(cov)
         eigen_vectors = eigen_vectors[:, np.argsort(-np.abs(eigen_values))]
-        pc_vectors = eigen_vectors[:, :self.n_componets]
+        pc_vectors = eigen_vectors[:, :self.n_components]
 
         self.pc_vectors = pc_vectors
         self.x_mean = x_mean

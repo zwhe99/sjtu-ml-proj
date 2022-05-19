@@ -23,7 +23,7 @@ def top_k_indices(model, x, k):
     
 
 def pairwise_distances(x):
-    return np.linalg.norm(x[:, None, :] - x[None, :, :], axis=-1)
+    return np.linalg.norm(x[:, None, :] - x[None, :, :], axis=-1).astype(np.float64)
 
 def probs_to_entropy(probs, exclude_id=None):
     if exclude_id is not None:

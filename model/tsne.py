@@ -1,5 +1,6 @@
 import math
 import numpy as np
+from tqdm import tqdm
 from .utils import (
     pairwise_distances, 
     squared_dist_to_gaussian_conditional_prob, 
@@ -79,7 +80,7 @@ class TSNE:
         update = np.zeros_like(self.h)
         best_loss = math.inf
         it = best_iter = 0
-        for it in range(n_iter):
+        for it in tqdm(range(n_iter), desc="TSNE training"):
             check_convergence = (it + 1) % self._N_ITER_CHECK == 0
 
             # compute the distance matrix for samples in low dimension (squared)

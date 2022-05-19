@@ -4,7 +4,9 @@ import torchtext
 import math
 import sys
 import logging
+import numpy as np
 import torch.nn as nn
+import matplotlib.pyplot as plt
 import torchtext.transforms as T
 import torchtext.functional as F
 from torchtext.datasets import SST2
@@ -13,8 +15,10 @@ from torch.utils.data import DataLoader
 from typing import OrderedDict
 
 from model.lstm import LSTMClassifier
+from model.pca import PCA
+from model.tsne import TSNE
 from trainer import Trainer
-from utils import pad_sequence, seed_everything
+from utils import pad_sequence, seed_everything, eval_helper
 
 logging.basicConfig(
     stream=sys.stdout,
@@ -79,6 +83,10 @@ def parse_args():
         help="Predict test set and quit")
     parser.add_argument("--out-file", type=str, default="pred.tsv",  
         help="Path to prediction file")
+    
+    # Eval
+    parser.add_argument("--eval-only", default=False, action="store_true", 
+        help="Evaluate model on dev set, and plot features using PCA and TSNE")
 
     # Seed for reproducibility
     parser.add_argument("--seed", type=int, default=42, 
@@ -91,6 +99,8 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
     logger.info(args)
+
+    assert not(args.predict_only and args.eval_only), "Cannot set --predict-only and --eval-only at the same time."
 
     seed_everything(args.seed)
 
@@ -161,18 +171,21 @@ if __name__ == "__main__":
         padding_idx=padding_idx, 
         num_classes=NUM_CLASSES
     )
+
     if args.restore_file:
         logger.info(f"Loading model from {args.restore_file}")
         model.load_state_dict(torch.load(args.restore_file))
 
+    # optimizer
     model.to(device)
+    criteria = nn.CrossEntropyLoss()
 
-    if not args.predict_only:
+    if (not args.predict_only) and (not args.eval_only):
         # do training
 
         # optimizer
         optim = AdamW(model.parameters(), lr=args.learning_rate)
-        criteria = nn.CrossEntropyLoss()
+        
 
         # start training
         trainer = Trainer(
@@ -192,20 +205,60 @@ if __name__ == "__main__":
         )
         trainer.train()
     
-    else:
+    elif args.predict_only:
         # predict test set
 
         logger.info(f"[TEST] Predicting test set ...")
-        outputs = []
-        
-        model.eval()
-        with torch.no_grad():
-            for batch in test_dataloader:
-                input, _ = batch[0], batch[1]    
-                outputs.append(model(input).argmax(1))  
-
-        outputs = torch.concat(outputs).cpu().numpy()
+        valid_outputs, valid_features, valid_targets, loss = eval_helper(model, test_dataloader, criteria)
 
         with open(args.out_file, 'w') as f:
-            f.writelines([str(p) + '\n' for p in outputs])
+            f.writelines([str(p) + '\n' for p in valid_outputs])
+    
+    elif args.eval_only:
+        # evaluate model on valid set, and plot features using PCA and t-SNE
+        if not args.restore_file:
+            logger.warning(f"[EVAL] You are evaluating a randomly initialized model. "
+                "You can set --restore-file to a trained model.")
+        
+        logger.info(f"[EVAL] Evaluating model on training set ...")
+        train_outputs, train_features, train_targets, train_loss = eval_helper(model, train_dataloader, criteria)
+
+        logger.info(f"[EVAL] Evaluating model on valid set ...")
+        valid_outputs, valid_features, valid_targets, valid_loss = eval_helper(model, dev_dataloader, criteria)
+
+        # log
+        train_accuracy = (train_outputs == train_targets).sum() / len(train_targets)
+        valid_accuracy = (valid_outputs == valid_targets).sum() / len(valid_targets)
+        logger.info(f"[EVAL] Train_loss={train_loss:.4f} Train_accuracy={train_accuracy:.4f} Valid_loss={valid_loss:.4f} Valid_accuracy={valid_accuracy:.4f}")
+
+        # display
+        fig_size = np.array([10, 5])
+        fig, axes = plt.subplots(nrows=1, ncols=2, figsize=fig_size)
+
+        # pca
+        pca_features = PCA().fit_transform(valid_features)
+
+        pos_features = pca_features[valid_targets == 1]
+        neg_features = pca_features[valid_targets == 0]
+
+        axes[0].scatter(pos_features[:, 0], pos_features[:, 1], marker='o', label="pos")
+        axes[0].scatter(neg_features[:, 0], neg_features[:, 1], marker='x', label="neg")
+        axes[0].set_title("PCA")
+
+        # tsne
+        tsne_features = TSNE().fit_transform(valid_features)
+        
+        pos_features = tsne_features[valid_targets == 1]
+        neg_features = tsne_features[valid_targets == 0]
+
+        axes[1].scatter(pos_features[:, 0], pos_features[:, 1], marker='o', label="pos")
+        axes[1].scatter(neg_features[:, 0], neg_features[:, 1], marker='x', label="neg")
+        axes[1].set_title("t-SNE")
+
+        # set other information
+        handles, labels = axes[-1].get_legend_handles_labels()
+        fig.legend(handles, labels, loc='center right')
+        fig.suptitle("Feature visualization of LSTM on SST-2 valid set")
+        plt.tight_layout()
+        plt.show()
 

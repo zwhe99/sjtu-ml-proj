@@ -42,6 +42,8 @@ In optional task 2, I implemented Grad-CAM and Shapley Value to explain ResNet-1
 
 ### Results
 
+**Grad-CAM**
+
 <img src="gradcam-resnet18-cat.png" alt="gradcam-resnet18-cat" style="zoom:72%;" />
 
 <img src="gradcam-resnet18-dog.png" alt="gradcam-resnet18-dog" style="zoom:72%;" />
@@ -49,6 +51,8 @@ In optional task 2, I implemented Grad-CAM and Shapley Value to explain ResNet-1
 <img src="gradcam-vgg16-cat.png" alt="gradcam-vgg16-cat" style="zoom:72%;" />
 
 <img src="gradcam-vgg16-dog.png" alt="gradcam-vgg16-dog" style="zoom:72%;" />
+
+**Shapley Value**
 
 <img src="shap-resnet18-cat.png" alt="shap-resnet18-cat" style="zoom:72%;" />
 
@@ -68,6 +72,54 @@ The difference between the two methods is that Grad-CAM retains only positive va
 
 ## Optional Task 3: Binary sentiment classification on SST-2 dataset 
 
-In optional task 2, I implemented long short-term memory (LSTM) network for binary sentiment classification on SST-2 dataset and visualize intermediate-layer features by PCA and t-SNE.
+In optional task 3, I implemented long short-term memory (LSTM) network for binary sentiment classification on SST-2 dataset and visualize intermediate-layer features by PCA and t-SNE.
 
 ### Long short-term memory (LSTM)
+
+LSTM networks are a speical kind of recurrent neural networks (RNN). The LSTM exploits structures called gates to control information flow in each step. A gate can be defined as:
+$$
+\textrm{Gate}(x, h) = \textrm{activation}(\textrm{Linear}(x)+\textrm{Linear}(h)),
+$$
+where $\textrm{activation}$ can be choosen from $\textrm{sigmoid}$ or $\textrm{tanh}$, and $\textrm{Linear}$ is a linear transformation with weights and bias as its parameters.
+
+LSTM do the following computaions for step $t$:
+$$
+\begin{aligned}
+&f_{t}=\textrm{Gate}_{forget}(x_t,h_{t-1}) \\
+&i_{t}=\textrm{Gate}_{input}(x_t,h_{t-1}) \\
+&\hat{c}_{t}=\textrm{Gate}_{cell}(x_t,h_{t-1}) \\
+&o_{t}=\textrm{Gate}_{output}(x_t,h_{t-1}) \\
+&c_{t}=f_{t} \odot c_{t-1}+i_{t} \odot \hat{c}_{t} \\
+&h_{t}=o_{t} \odot \tanh \left(c_{t}\right)
+\end{aligned}
+$$
+where $\odot $ is element-wise product and $x_t$ is the input at step $t$.
+
+### Training curves
+
+**Best loss and accuracy**
+
+|              | Train  | Valid  |
+| :----------: | :----: | :----: |
+|   **Loss**   | 0.1381 | 0.4661 |
+| **Accuracy** | 0.9482 | 0.8268 |
+
+**Training loss**
+
+<img src="/Users/zwhe/ALLPhd/课程资料/机器学习/proj/imgs/sst2-train-loss.png" alt="sst2-train-loss" style="zoom:72%;" />
+
+**Valid loss**
+
+<img src="/Users/zwhe/ALLPhd/课程资料/机器学习/proj/imgs/sst2-valid-loss.png" alt="sst2-valid-loss" style="zoom:72%;" />
+
+**Valid acc**
+
+<img src="/Users/zwhe/ALLPhd/课程资料/机器学习/proj/imgs/sst2-valid-acc.png" alt="sst2-valid-acc" style="zoom:72%;" />
+
+### Feature visualization
+
+
+
+![feature-sst2](feature-sst2.png)
+
+Both PCA and t-SNE show clustering of different categories of samples. PCA shows the two dimensions with the largest sample variance, while t-SNE preserves the neighbor relationship in the high-dimensional space.

@@ -125,7 +125,7 @@ class LSTMClassifier(torch.nn.Module):
             out_features=num_classes
         )
 
-    def forward(self, x):
+    def forward(self, x, return_feature=False):
         x = self.embedding(x)
         h_last, c_last = self.lstm(x)
         
@@ -133,7 +133,8 @@ class LSTMClassifier(torch.nn.Module):
         h = self.layer_norm(h_last + h_ffn)
         
         scores = self.dense(h)
-        return scores
 
-
-
+        if return_feature:
+            return scores, h.detach()
+        else:
+            return scores
