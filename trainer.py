@@ -40,6 +40,8 @@ class Trainer:
 
         self.best_accuracy = 0
 
+        logger.info(f"[MODEL] {self.model}")
+
     def train_step(self, batch):
         self.model.train()
         input, target = batch[0], batch[1]
@@ -54,24 +56,22 @@ class Trainer:
     def valid_step(self, batch):
         self.model.eval()
 
-        total_loss = 0
-        correct_predictions = 0
-        total_predictions = 0
-        counter = 0
+        probs = []
+        outputs = []
+        targets = []
         with torch.no_grad():
             for batch in self.dev_dataloader:
                 input, target = batch[0], batch[1]      
+                prob = self.model(input)
+                probs.append(prob)
+                outputs.append(prob.argmax(1))  
+                targets.append(target)
+        outputs = torch.concat(outputs)
+        probs = torch.vstack(probs)
+        targets = torch.concat(targets)
 
-                output = self.model(input)
-                loss = self.criteria(output, target).item()
-
-                total_loss += float(loss)
-                correct_predictions += (output.argmax(1) == target).type(torch.float).sum().item()
-                total_predictions += len(target)
-                counter += 1
-
-        valid_loss = total_loss / counter
-        valid_accuracy = correct_predictions / total_predictions
+        valid_loss = self.criteria(probs, targets).cpu().item()
+        valid_accuracy = (outputs == targets).sum() / len(targets)
         return valid_loss, valid_accuracy
 
     def train(self):

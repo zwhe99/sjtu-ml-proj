@@ -4,6 +4,7 @@ import torch
 from torchvision import transforms
 
 IMAGE_SHAPE = (224, 224)
+MACHINE_EPS = np.finfo(np.float32).eps
 
 preprocess = transforms.Compose([
     transforms.Resize(256),
@@ -52,6 +53,13 @@ def squared_dist_to_gaussian_conditional_prob(squared_dist_matrix, tgt_ppl):
             for j in range(n_samples):
                 if i != j:
                     con_matrix[i, j] = math.exp(-squared_dist_matrix[i, j] * beta)
+                    
+            if not con_matrix[i, :].any():
+                # when con_matrix[i, :] is all zeros, add eps
+                for j in range(n_samples):
+                    if i != j:
+                        con_matrix[i, j] += MACHINE_EPS
+
             con_matrix[i, :] /= con_matrix[i, :].sum()
 
             entropy = probs_to_entropy(con_matrix[i, :], exclude_id=i)

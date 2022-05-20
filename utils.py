@@ -40,7 +40,7 @@ def seed_everything(seed: int):
     torch.backends.cudnn.benchmark = True
 
 
-def eval_helper(model, dataloader, criteria):
+def eval_helper(model, dataloader, criteria, layer_name=None):
     outputs = []
     probs = []
     features = []
@@ -50,8 +50,11 @@ def eval_helper(model, dataloader, criteria):
     model.eval()
     with torch.no_grad():
         for batch in tqdm(dataloader):
-            input, target = batch[0], batch[1]   
-            prob, feature = model(input, return_feature=True)
+            input, target = batch[0], batch[1]
+            if layer_name is not None:
+                prob, feature = model(input, return_feature=True, layer_name=layer_name)
+            else:
+                prob, feature = model(input, return_feature=True)
 
             outputs.append(prob.argmax(1))  
             probs.append(prob)
