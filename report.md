@@ -64,19 +64,19 @@ The only hyperparameter is  `learning rate=0.001`. To reproduce the result, see 
 
 **Training loss**
 
-<img src="/Users/zwhe/ALLPhd/课程资料/机器学习/proj/imgs/mnist-train-loss.png" alt="mnist-train-loss" style="zoom:72%;" />
+<img src="imgs/mnist-train-loss.png" alt="mnist-train-loss" style="zoom:72%;" />
 
 **Valid loss**
 
-<img src="/Users/zwhe/ALLPhd/课程资料/机器学习/proj/imgs/mnist-valid-loss.png" alt="mnist-valid-loss" style="zoom:72%;" />
+<img src="imgs/mnist-valid-loss.png" alt="mnist-valid-loss" style="zoom:72%;" />
 
 **Valid acc**
 
-<img src="/Users/zwhe/ALLPhd/课程资料/机器学习/proj/imgs/mnist-valid-acc.png" alt="mnist-valid-acc" style="zoom:72%;" />
+<img src="imgs/mnist-valid-acc.png" alt="mnist-valid-acc" style="zoom:72%;" />
 
 ### Feature visualization
 
-![feature-mnist](/Users/zwhe/ALLPhd/课程资料/机器学习/proj/imgs/feature-mnist.png)
+![feature-mnist](imgs/feature-mnist.png)
 
 The data points are more dispersed after PCA because it maximizes the variance of the data. The t-SNE clustering is more obvious because it retains the neighbor relationship. In addition, the features of the fully-connected layers are more distinguishable than those of the previous layers.
 
