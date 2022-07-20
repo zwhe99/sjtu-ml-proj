@@ -45,6 +45,12 @@ MNISTClassifier(
 
 <img src="imgs/arch.jpg" alt="mnist-classifier" style="zoom: 50%;" />
 
+**Hyper-parameter**
+
+The only hyperparameter is  `learning rate=0.001`. To reproduce the result, see [Usage](#Usage).
+
+
+
 ### Training Curves
 
 **Best loss and accuracy**
